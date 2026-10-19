@@ -1,0 +1,5 @@
+int main() {
+    print(20 / 4);
+    print(19 / 5);
+    return 0;
+}
