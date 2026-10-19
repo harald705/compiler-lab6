@@ -51,6 +51,62 @@ aspect CodeGen {
         out.println("        popq %rbp");
         out.println("        ret");
 
+        // Read
+        out.println("read:");
+        out.println("        pushq %rbp");
+        out.println("        movq %rsp, %rbp");
+        out.println("        ### R9  = sign");
+        out.println("        movq $1, %r9            # sign <- 1");
+        out.println("        ### R10 = sum");
+        out.println("        movq $0, %r10           # sum <- 0");
+        out.println("skip_ws: # skip any leading whitespace");
+        out.println("        movq $0, %rdi");
+        out.println("        leaq buf(%rip), %rsi");
+        out.println("        movq $1, %rdx");
+        out.println("        movq $0, %rax");
+        out.println("        syscall                 # get one char: sys_read(0, buf, 1)");
+        out.println("        cmpq $0, %rax");
+        out.println("        jle atoi_done           # nchar <= 0");
+        out.println("        movb (%rsi), %cl        # c <- current char");
+        out.println("        cmp $32, %cl");
+        out.println("        je skip_ws              # c == space");
+        out.println("        cmp $13, %cl");
+        out.println("        je skip_ws              # c == CR");
+        out.println("        cmp $10, %cl");
+        out.println("        je skip_ws              # c == NL");
+        out.println("        cmp $9, %cl");
+        out.println("        je skip_ws              # c == tab");
+        out.println("        cmp $45, %cl            # check if negative");
+        out.println("        jne atoi_loop");
+        out.println("        movq $-1, %r9           # sign <- -1");
+        out.println("        movq $0, %rdi");
+        out.println("        leaq buf(%rip), %rsi");
+        out.println("        movq $1, %rdx");
+        out.println("        movq $0, %rax");
+        out.println("        syscall                 # get one char: sys_read(0, buf, 1)");
+        out.println("atoi_loop:");
+        out.println("        cmpq $0, %rax           # while (nchar > 0)");
+        out.println("        jle atoi_done           # leave loop if nchar <= 0");
+        out.println("        movzbq (%rsi), %rcx     # move byte, zero extend to quad-word");
+        out.println("        cmpq $0x30, %rcx        # test if < '0'");
+        out.println("        jl atoi_done            # character is not numeric");
+        out.println("        cmpq $0x39, %rcx        # test if > '9'");
+        out.println("        jg atoi_done            # character is not numeric");
+        out.println("        imulq $10, %r10         # multiply sum by 10");
+        out.println("        subq $0x30, %rcx        # value of character");
+        out.println("        addq %rcx, %r10         # add to sum");
+        out.println("        movq $0, %rdi");
+        out.println("        leaq buf(%rip), %rsi");
+        out.println("        movq $1, %rdx");
+        out.println("        movq $0, %rax");
+        out.println("        syscall                 # get one char: sys_read(0, buf, 1)");
+        out.println("        jmp atoi_loop           # loop back");
+        out.println("atoi_done:");
+        out.println("        imulq %r9, %r10         # sum *= sign");
+        out.println("        movq %r10, %rax         # put result value in RAX");
+        out.println("        popq %rbp");
+        out.println("        ret");
+
         for (FunctionDecl decl: getFunctionDeclList()) {
             decl.genCode(out);
         }
@@ -60,6 +116,11 @@ aspect CodeGen {
         out.println(getIdDecl().getID() + ":");
         out.println("       pushq %rbp");
         out.println("       movq %rsp, %rbp");
+
+        // Allocate space for local variables
+        if (numLocals() > 0) {
+            out.println("       subq $" + (numLocals() * 8) + ", %rsp");
+        }
 
         // Generate assembly for function body
         getBody().genCode(out);
@@ -108,8 +169,32 @@ aspect CodeGen {
     }
 
 
+    public void VDecl.genCode(PrintStream out) {
+        if (hasInit()) {
+            getInit().genEval(out);
+        } else {
+            out.println("       movq $0, %rax");
+        }
+        out.println("       movq %rax, " + getIdDecl().address());
+    }
+
+
+    public void AssignStatement.genCode(PrintStream out) {
+        getValue().genEval(out);
+        out.println("       movq %rax, " + getTarget().decl().address());
+    }
+
+
+    public void IdUse.genEval(PrintStream out) {
+        out.println("       movq " + decl().address() + ", %rax");
+    }
+
+
     public void ReturnStmt.genCode(PrintStream out) {
         getValue().genEval(out);
+        out.println("       movq %rbp, %rsp");
+        out.println("       popq %rbp");
+        out.println("       ret");
     }
 
 
@@ -270,8 +355,54 @@ aspect CodeGen {
         // Generate loop body
         getBody().genCode(out);
 
-        out.println("       jmp " + start);
+        out.println("       jmp " + startLabel());
         out.println(endLabel() + ":");
+    }
+
+
+    syn HashMap<IdDecl, Integer> FunctionDecl.localMap() {
+        HashMap<IdDecl, Integer> m = new HashMap<>();
+        Counter c = new Counter();
+        getBody().addLocals(m, c);
+        return m;
+    }
+
+    public void ASTNode.addLocals(HashMap<IdDecl, Integer> m, Counter c) {
+        for (ASTNode child : astChildren()) {
+            child.addLocals(m, c);
+        }
+    }
+
+    public void VDecl.addLocals(HashMap<IdDecl, Integer> m, Counter c) {
+        c.increment();
+        m.put(getIdDecl(), c.value());
+    }
+
+
+    syn int FunctionDecl.numLocals() = localMap().size();
+
+    inh HashMap<IdDecl, Integer> IdDecl.localMap();
+    eq FunctionDecl.getBody().localMap() = localMap();
+
+
+    inh int Parameter.parameterIndex();
+    eq FunctionDecl.getParameter(int index).parameterIndex() = index;
+
+    syn int IdDecl.localIndex() = localMap().get(this);
+    //syn String IdDecl.address() = "-" + (localIndex() * 8) + "(%rbp)";
+    inh String IdDecl.address();
+    eq VDecl.getIdDecl().address() = "-" + (getIdDecl().localIndex() * 8) + "(%rbp)";
+    eq Parameter.getIdDecl().address() = (16 + parameterIndex() * 8) + "(%rbp)";
+
+    public class Counter {
+        int count = 0;
+        void increment() {
+            count++;
+        }
+
+        int value() {
+            return count;
+        }
     }
 
 
