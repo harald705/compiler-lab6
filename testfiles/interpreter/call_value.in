@@ -1,0 +1,11 @@
+int change(int a) {
+    a = 100;
+    print(a);
+    return a;
+}
+
+int main() {
+    int a = 1;
+    change(a);
+    print(a);
+}

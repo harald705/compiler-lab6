@@ -1,0 +1,54 @@
+Program ::= FunctionDecl*;
+
+// FunctionDecl ::= IdDecl Body:Block;
+FunctionDecl ::= IdDecl Parameter* Body:Block;
+
+Parameter ::= IdDecl;
+
+UnknownDecl : IdDecl;
+
+IdDecl ::= <ID:String>;
+
+Block ::= Stmt*;
+
+abstract Stmt;
+
+VDecl: Stmt ::= IdDecl [Init:Expression];
+
+AssignStatement: Stmt ::= Target:IdUse Value:Expression;
+
+ReturnStmt: Stmt ::= Value:Expression;
+
+IfStmt: Stmt ::= Condition:Expression Then:Block [Else:Block];
+
+WhileStmt: Stmt ::= Condition:Expression Body:Block;
+
+abstract Expression;
+
+FunctionCall: Expression ::= Function:IdUse Argument:Expression*;
+
+FunctionCallStmt: Stmt ::= FunctionCall;
+
+IdUse: Expression ::= <ID:String>;
+
+Numeral: Expression ::= <NUMERAL:String>;
+
+Negate: Expression ::= Operand:Expression;
+
+Add: Expression ::= Left:Expression Right:Expression;
+Subtract: Expression ::= Left:Expression Right:Expression;
+Multiply: Expression ::= Left:Expression Right:Expression;
+Divide: Expression ::= Left:Expression Right:Expression;
+Modulo: Expression ::= Left:Expression Right:Expression;
+
+Equal: Expression ::= Left:Expression Right:Expression;
+NotEqual: Expression ::= Left:Expression Right:Expression;
+LessThan: Expression ::= Left:Expression Right:Expression;
+LessEqual: Expression ::= Left:Expression Right:Expression;
+GreaterThan: Expression ::= Left:Expression Right:Expression;
+GreaterEqual: Expression ::= Left:Expression Right:Expression;
+
+abstract Type;
+IntType: Type;
+BoolType: Type;
+UnknownType: Type;

@@ -1,0 +1,5 @@
+int main() {
+    x = 1; //[[IdUse.decl.isUnknown=true]]
+    int x;
+    return 0;
+}

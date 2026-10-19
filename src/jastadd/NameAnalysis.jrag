@@ -1,0 +1,105 @@
+aspect NameAnalysis {
+    
+    inh String Stmt.uniquePrefix();
+    inh String Block.uniquePrefix();
+
+    eq FunctionDecl.getBody().uniquePrefix() = "";
+
+    eq Block.getStmt(int index).uniquePrefix() = uniquePrefix() + index + "_";
+    eq Parameter.getIdDecl().uniquePrefix() = uniquePrefix();
+
+    eq IfStmt.getThen().uniquePrefix() = uniquePrefix() + "then_";
+    eq IfStmt.getElse().uniquePrefix() = uniquePrefix() + "else_";
+    eq WhileStmt.getBody().uniquePrefix() = uniquePrefix() + "while_";
+
+    inh String IdDecl.uniquePrefix();
+    eq VDecl.getIdDecl().uniquePrefix() = uniquePrefix();
+
+    inh String Parameter.uniquePrefix();
+    eq FunctionDecl.getParameter(int index).uniquePrefix() = "param_" + index + "_";
+
+    syn String IdDecl.uniqueName() = uniquePrefix() + getID();
+    
+    syn IdDecl IdUse.decl() = lookup(getID());
+
+    inh IdDecl IdUse.lookup(String name);
+    inh IdDecl IdDecl.lookup(String name);
+    inh IdDecl Block.lookup(String name);
+    eq Program.getChild().lookup(String name) = localLookup(name);
+
+    inh boolean IdDecl.isFunction();
+    eq FunctionDecl.getIdDecl().isFunction() = true;
+    eq Program.getChild().isFunction() = false;
+
+    syn IdDecl Program.localLookup(String name) {
+        // Check predefined functions
+        for (int i = 0; i < predefinedFunctions().getNumChild(); i++) {
+            FunctionDecl function = predefinedFunctions().getChild(i);
+            if (function.getIdDecl().getID().equals(name)) {
+                return function.getIdDecl();
+            }
+        }
+        
+        // Check user-defined functions
+        for (int i = 0; i < getNumFunctionDecl(); i++) {
+            FunctionDecl function = getFunctionDecl(i);
+            if (function.getIdDecl().getID().equals(name)) {
+                return function.getIdDecl();
+            }
+        }
+        return unknownDecl();
+    }
+
+    syn IdDecl Stmt.localDecl(String name) = unknownDecl();
+
+    eq VDecl.localDecl(String name) =
+        getIdDecl().getID().equals(name)
+        ? getIdDecl()
+        : unknownDecl();
+
+        
+    eq Block.getStmt(int index).lookup(String name) {
+        for (int i = 0; i <= index; i++) {
+            IdDecl decl = getStmt(i).localDecl(name);
+
+            if (!decl.isUnknown()) {
+                return decl;
+            }
+        }
+        return lookup(name);
+    }
+
+    inh IdDecl FunctionDecl.lookup(String name);
+
+    syn IdDecl FunctionDecl.localLookup(String name) {
+        for (int i = 0; i < getNumParameter(); i++) {
+            Parameter parameter = getParameter(i);
+            if (parameter.getIdDecl().getID().equals(name)) {
+                return parameter.getIdDecl();
+            }
+        }
+        return unknownDecl();
+    }
+
+    eq FunctionDecl.getChild().lookup(String name) {
+        IdDecl decl = localLookup(name);
+        return !decl.isUnknown() ? decl : lookup(name);
+    }
+    syn boolean IdDecl.isDeclaredMult() = lookup(getID()) != this;
+
+    syn boolean IdUse.isCircular() = inExprOf(decl());
+
+    inh boolean IdUse.inExprOf(IdDecl decl);
+    eq VDecl.getInit().inExprOf(IdDecl decl) = getIdDecl() == decl;
+
+    eq Program.getChild().inExprOf(IdDecl decl) = false;
+
+    inh FunctionDecl IdDecl.function();
+    eq FunctionDecl.getIdDecl().function() = this;
+    eq Program.getChild().function() = null;
+
+    inh boolean IdUse.isFunctionUse();
+    eq FunctionCall.getFunction().isFunctionUse() = true;
+    eq Program.getChild().isFunctionUse() = false;
+
+}

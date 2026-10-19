@@ -1,0 +1,4 @@
+int main() {
+    print(1); //[[IdUse.decl.isUnknown=false]]
+    return 0;
+}

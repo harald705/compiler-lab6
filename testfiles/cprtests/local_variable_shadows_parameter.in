@@ -1,0 +1,4 @@
+int foo(int x) {
+    int x; //[[$d:=IdDecl]]
+    return x; //[[IdUse.decl=$d]]
+}

@@ -1,0 +1,49 @@
+import java.util.Set;
+import java.util.HashSet;
+import java.util.TreeSet;
+
+aspect CallGraph {
+
+    // null or function a node is part of
+    inh FunctionDecl FunctionCall.enclosingFunction();
+    eq FunctionDecl.getChild().enclosingFunction() = this;
+    eq Program.getChild().enclosingFunction() = null;
+
+    // functions that directly call the function
+
+    coll Set<FunctionDecl> FunctionDecl.functionCalls() [new HashSet<FunctionDecl>()] with add root FunctionDecl;
+
+    FunctionCall contributes getFunction().decl().function()
+        when getFunction().decl().isFunction()
+        to FunctionDecl.functionCalls() for enclosingFunction();
+
+    // reachable functions: circular*
+    syn Set<FunctionDecl> FunctionDecl.reachable() circular [new HashSet<FunctionDecl>()] {
+        Set<FunctionDecl> result = new HashSet<FunctionDecl>();
+        for (FunctionDecl fun : functionCalls()) {
+            result.add(fun);
+            result.addAll(fun.reachable());
+        }
+        return result;
+    }
+
+    syn String FunctionDecl.name() = getIdDecl().getID();
+
+    syn String FunctionDecl.functionCallNames() = names(functionCalls());
+    syn String FunctionDecl.reachableNames() = names(reachable());
+
+    public static String FunctionDecl.names(Set<FunctionDecl> functions) {
+        TreeSet<String> names = new TreeSet<String>();
+        for (FunctionDecl f : functions) {
+            names.add(f.name());
+        }
+        StringBuilder stringbuild = new StringBuilder("{");
+        for (String name : names) {
+            if (stringbuild.length() > 1) {
+                stringbuild.append(", ");
+            }
+            stringbuild.append(name);
+        }
+        return stringbuild.append("}").toString();
+    }
+}

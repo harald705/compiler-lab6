@@ -1,0 +1,50 @@
+aspect TypeAnalysis {
+    syn nta IntType Program.intType() = new IntType();
+    syn nta BoolType Program.boolType() = new BoolType();
+    syn nta UnknownType Program.unknownType() = new UnknownType();
+
+    inh IntType ASTNode.intType();
+    inh BoolType ASTNode.boolType();
+    inh UnknownType ASTNode.unknownType();
+    eq Program.getChild().intType() = intType();
+    eq Program.getChild().boolType() = boolType();
+    eq Program.getChild().unknownType() = unknownType();
+
+    syn String Type.name();
+    eq IntType.name() = "int";
+    eq BoolType.name() = "bool";
+    eq UnknownType.name() = "unknown";
+
+    syn Type IdDecl.type() = intType();
+    eq UnknownDecl.type() = unknownType();
+
+    syn Type Expression.type();
+    eq Numeral.type() = intType();
+    eq IdUse.type() = decl().type();
+    eq FunctionCall.type() = getFunction().decl().type();
+    eq Negate.type() = intType();
+    eq Add.type() = intType();
+    eq Subtract.type() = intType();
+    eq Multiply.type() = intType();
+    eq Divide.type() = intType();
+    eq Modulo.type() = intType();
+    eq Equal.type() = boolType();
+    eq NotEqual.type() = boolType();
+    eq LessThan.type() = boolType();
+    eq LessEqual.type() = boolType();
+    eq GreaterThan.type() = boolType();
+    eq GreaterEqual.type() = boolType();
+
+    inh Type Expression.expectedType();
+    eq Program.getChild().expectedType() = intType();
+    eq IfStmt.getCondition().expectedType() = boolType();
+    eq WhileStmt.getCondition().expectedType() = boolType();
+
+    eq Expression.getChild().expectedType() = intType();
+
+    syn boolean Type.isUnknownType() = false;
+    eq UnknownType.isUnknownType() = true;
+
+    syn boolean Type.compatibleType(Type other) = this == other || other.isUnknownType();
+    eq UnknownType.compatibleType(Type other) = true;
+}

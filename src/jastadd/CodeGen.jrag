@@ -1,0 +1,61 @@
+aspect CodeGen {
+
+
+public void Program.genCode(PrintStream out) {
+    out.println(".global _start");
+    // etc.
+    out.println("_start:");
+    out.println("       call main");
+    // Exiting with code 0
+    out.println("       movq $0, %rdi");
+    out.println("       movq $60, %rax");
+    out.println("       syscall");
+    // helper procedures (print/read)
+
+    for (FunctionDecl decl: getFunctionDeclList()) {
+        decl.genCode(out);
+    }
+}
+
+public void FunctionDecl.genCode(PrintStream out) {
+    out.println(getIdDecl().getID() + ":");
+    out.println("       pushq %rbp");
+    out.println("       movq %rsp, %rbp");
+
+    // Generate assembly for function body
+    getBody().genCode(out);
+
+    out.println("       movq %rbp, %rsp");
+    out.println("       popq %rbp");
+    out.println("       ret");
+}
+
+
+public void Block.genCode(PrintStream out) {
+    for (Stmt stmt : getStmtList()) {
+        stmt.genCode(out);
+    }
+}
+
+
+public void Stmt.genCode(PrintStream out) {
+    // Default
+}
+
+
+public void Expression.genEval(PrintStream out) {
+    // Default
+}
+
+
+public void ReturnStmt.genCode(PrintStream out) {
+    getValue().genEval(out);
+}
+
+
+public void Numeral.genEval(PrintStream out) {
+    out.println("       movq $" + getNUMERAL() + ", %rax");
+}
+
+
+}

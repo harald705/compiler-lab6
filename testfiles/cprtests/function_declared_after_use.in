@@ -1,0 +1,7 @@
+int main() {
+    return foo(); //[[IdUse.decl=$d]]
+}
+
+int foo() { //[[$d:=IdDecl]]
+    return 1;
+}

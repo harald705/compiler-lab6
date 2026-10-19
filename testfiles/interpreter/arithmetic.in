@@ -1,0 +1,6 @@
+int main() {
+    print(1 + 2 * 3);
+    print(10 - 4);
+    print(20 / 5);
+    print(11 % 4);
+}

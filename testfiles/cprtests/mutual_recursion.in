@@ -1,0 +1,7 @@
+int foo() { //[[$foo:=IdDecl]]
+    return bar(); //[[IdUse.decl=$bar]]
+}
+
+int bar() { //[[$bar:=IdDecl]]
+    return foo(); //[[IdUse.decl=$foo]]
+}

@@ -1,0 +1,9 @@
+int main() {
+    int x; //[[$d:=IdDecl]]
+
+    if (1 == 1) {
+        return x; //[[IdUse.decl=$d]]
+    }
+
+    return 0;
+}

@@ -1,0 +1,14 @@
+int add(int a, int b) {
+    return a + b;
+}
+
+int show(int x) {
+    print(x);
+}
+
+int main() {
+    int i = 1;
+    print(add(i, 2));
+    show(42);
+    print(show(7));
+}

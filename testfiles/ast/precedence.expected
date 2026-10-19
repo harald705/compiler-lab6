@@ -1,0 +1,17 @@
+Program
+  List
+    FunctionDecl
+      IdDecl ID="a"
+      List
+      Block
+        List
+          VDecl
+            IdDecl ID="x"
+            Opt
+          AssignStatement
+            IdUse ID="x"
+            Add
+              Numeral NUMERAL="1"
+              Multiply
+                Numeral NUMERAL="2"
+                Numeral NUMERAL="3"

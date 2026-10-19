@@ -1,0 +1,12 @@
+int main() {
+    print(ifTest(1, 2));
+    print(ifTest(2, 1));
+}
+
+int ifTest(int a, int b) {
+    if (a < b) {
+        return 1;
+    } else {
+        return 0;
+    }
+}

@@ -1,0 +1,216 @@
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.lang.RuntimeException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.ParameterizedType;
+
+// We have been careful to not import many types here because the imports are added for
+// _ALL_ AST nodes and can cause collisions in the abstract grammar namespace.
+
+aspect DumpTree {
+    public String ASTNode.TREE_VERSION() { return "26a"; }
+    private static final String ASTNode.DUMP_TREE_INDENT = "  ";
+
+    public class DumpTreeResult {
+        public final String tree;
+        public final boolean hasErrors;
+        public DumpTreeResult(String tree, boolean hasErrors) {
+            this.tree = tree;
+            this.hasErrors = hasErrors;
+        }
+        public String toString() {
+            return tree;
+        }
+    }
+
+    public DumpTreeResult ASTNode.dumpTree() {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        boolean hasErrors = dumpTree(new PrintStream(bytes));
+        return new DumpTreeResult(bytes.toString(), hasErrors);
+    }
+
+    public boolean ASTNode.dumpTree(PrintStream out) {
+        boolean hasErrors = dumpTree(out, "");
+        out.flush();
+        return hasErrors;
+    }
+
+    public boolean ASTNode.dumpTree(PrintStream out, String indent) {
+        out.print(indent + getClass().getSimpleName());
+
+        // Check if the children are correctly constructed
+        boolean hasErrors = false;
+        ArrayList<String> errors = checkChildren();
+        if (!errors.isEmpty()) {
+            out.print(" - " + String.join(" ", errors));
+            hasErrors = true;
+        }
+
+        out.println(getTokens());
+        String childIndent = indent + DUMP_TREE_INDENT;
+        for (ASTNode child : astChildren()) {
+            if (child == null) {
+                out.println(childIndent + "null");
+            } else {
+                boolean childHasErrors = child.dumpTree(out, childIndent);
+                hasErrors = hasErrors || childHasErrors;
+            }
+        }
+
+        return hasErrors;
+    }
+
+    public String ASTNode.getTokens() {
+        java.util.TreeSet<java.lang.reflect.Method> methods = new java.util.TreeSet<>(
+                new java.util.Comparator<java.lang.reflect.Method>() {
+                    public int compare(java.lang.reflect.Method m1, java.lang.reflect.Method m2) {
+                        return m1.getName().compareTo(m2.getName());
+                    }
+                });
+
+        methods.addAll(java.util.Arrays.asList(getClass().getMethods()));
+
+        String result = "";
+        for (java.lang.reflect.Method method : methods) {
+            ASTNodeAnnotation.Token token = method.getAnnotation(ASTNodeAnnotation.Token.class);
+            if (token != null) {
+                try {
+                    result += String.format(" %s=\"%s\"", token.name(), method.invoke(this));
+                } catch (IllegalAccessException ignored) {
+                } catch (InvocationTargetException ignored) {
+                }
+            }
+        }
+        return result;
+    }
+}
+
+
+/**
+ * Methods for checking that the AST is correctly built
+ */
+aspect ASTChecker {
+    private ArrayList<String> ASTNode.checkChildren() {
+        ArrayList<String> errors = new ArrayList<>();
+
+        java.lang.reflect.Method[] methods = getClass().getMethods();
+
+        // Sort to get deterministic results
+        java.util.Arrays.sort(methods, (a, b) -> a.toString().compareTo(b.toString()));
+
+        for (java.lang.reflect.Method method: methods) {
+            if (method.isAnnotationPresent(ASTNodeAnnotation.Child.class)) {
+                checkNormalChild(method, errors);
+            } else if (method.isAnnotationPresent(ASTNodeAnnotation.OptChild.class)) {
+                checkOptChild(method, errors);
+            } else if (method.isAnnotationPresent(ASTNodeAnnotation.ListChild.class)) {
+                checkListChild(method, errors);
+            }
+        }
+
+        return errors;
+    }
+
+    private void ASTNode.checkNormalChild(java.lang.reflect.Method method, ArrayList<String> errors) {
+        Object returnValue = null;
+        try {
+            returnValue = invokeMethod(method);
+        } catch (RuntimeException e) {
+            errors.add(e.getMessage());
+            return;
+        }
+
+        String childName = method.getAnnotation(ASTNodeAnnotation.Child.class).name();
+
+        if (returnValue == null) {
+            errors.add("ERROR! The child " + childName
+                + " returns null. A child node should always be created!");
+        }
+    }
+
+    private void ASTNode.checkOptChild(java.lang.reflect.Method method, ArrayList<String> errors) {
+        Opt<?> optNode = null;
+        try {
+            optNode = (Opt<?>) invokeMethod(method);
+        } catch (RuntimeException e) {
+            errors.add(e.getMessage());
+            return;
+        }
+
+        String childName = method.getAnnotation(ASTNodeAnnotation.OptChild.class).name();
+
+        // Optional node needs to be created
+        if (optNode == null) {
+            errors.add("ERROR! The optional child " + childName
+                + " returns null. An Opt node should always be created!");
+        }
+
+        // Check type of opt child
+        if (optNode != null && optNode.getNumChild() == 1) {
+            Class<?> typeArgument = getTypeArgument(method);
+            ASTNode<?> optChild = optNode.getChild(0);
+            if (!typeArgument.isInstance(optChild)) {
+                errors.add("ERROR! The optional child " + childName
+                    + " returns a value of type " + optChild.getClass().getSimpleName()
+                    + " which is NOT a subtype of " + typeArgument.getSimpleName());
+            }
+        }
+    }
+
+    private void ASTNode.checkListChild(java.lang.reflect.Method method, ArrayList<String> errors) {
+        List<?> listNode = null;
+        try {
+            listNode = (List<?>) invokeMethod(method);
+        } catch (RuntimeException e) {
+            errors.add(e.getMessage());
+            return;
+        }
+
+        String childName = method.getAnnotation(ASTNodeAnnotation.ListChild.class).name();
+
+        // Check that a list node has been created
+        if (listNode == null) {
+            errors.add("ERROR! The list child " + childName
+                + " returns null. A List node should always be created!");
+        }
+
+        // Check type of list children
+        if (listNode != null) {
+            Class<?> typeArgument = getTypeArgument(method);
+            for (ASTNode<?> listChild: listNode.astChildren()) {
+                if (!typeArgument.isInstance(listChild)) {
+                    errors.add("ERROR! The list child " + childName
+                        + " contains a child of type " + listChild.getClass().getSimpleName()
+                        + " which is NOT a subtype of " + typeArgument.getSimpleName());
+                }
+            }
+        }
+    }
+
+    private Object ASTNode.invokeMethod(java.lang.reflect.Method method) {
+        try {
+            return method.invoke(this);
+        } catch (InvocationTargetException e) {
+            // If the returned value (child) is not of correct type,
+            // then this exception will be caused by a ClassCastException.
+            String message =
+                "Error when invoking method " + method.getName()
+                + ". " + e.getTargetException();
+            throw new RuntimeException("ERROR! " + message);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("ERROR! Error invoking method: " + e.getMessage());
+        }
+    }
+
+    private static Class ASTNode.getTypeArgument(java.lang.reflect.Method method) {
+        if (method.getGenericReturnType() instanceof ParameterizedType) {
+            ParameterizedType pt = (ParameterizedType) method.getGenericReturnType();
+            java.lang.reflect.Type[] typeArgs = pt.getActualTypeArguments();
+            java.lang.reflect.Type typeArgument = typeArgs[0];
+            return (Class) typeArgument;
+        }
+        return null;
+    }
+}

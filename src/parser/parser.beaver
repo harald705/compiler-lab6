@@ -1,0 +1,270 @@
+%class "LangParser";
+%package "lang.ast";
+
+%embed {:
+    static public class SyntaxError extends RuntimeException { public SyntaxError(String msg) {super(msg);}}
+    // Disable syntax error recovery
+    protected void recoverFromError(Symbol token, TokenStream in) {
+        throw new SyntaxError("Cannot recover from the syntax error");
+    }
+:};
+
+%terminals INT, ID, NUMERAL, LPAREN, RPAREN, LBRACE, RBRACE, ASSIGN, SEMICOLON, COMMA, PLUS, MINUS, DIV, MUL, MOD, EQ, NEQ, LT, LE, GT, GE,
+            RETURN, WHILE, IF, ELSE;
+
+%goal program;
+
+Program program = funct_list.functions {: return new Program(functions); :} ;
+
+List funct_list =
+    /* empty */
+    {: return new List<FunctionDecl>(); :}
+    | funct_list.functions function_decl.function
+    {: return functions.add(function); :}
+    ;
+
+/*
+FunctionDecl function_decl =
+    INT id_decl.name LPAREN RPAREN block.body
+    {: return new FunctionDecl(name, body); :}
+    ;
+*/
+
+FunctionDecl function_decl =
+    INT id_decl.name LPAREN parameter_list.params RPAREN block.body
+    {: return new FunctionDecl(name, params, body); :}
+    ;
+
+
+List parameter_list =
+    /* empty */
+    {: return new List<Parameter>(); :}
+    | nonempty_parameter_list.params
+    {: return params; :}
+    ;
+
+List nonempty_parameter_list =
+    parameter.param
+    {:
+        List<Parameter> params = new List<Parameter>();
+        return params.add(param);
+        :}
+    | nonempty_parameter_list.params COMMA parameter.param
+    {: return params.add(param); :}
+    ;
+
+Parameter parameter =
+    INT id_decl.name
+    {: return new Parameter(name); :}
+    ;
+
+
+
+List argument_list =
+    /* empty */
+    {: return new List<Expression>(); :}
+    | nonempty_argument_list.args
+    {: return args; :}
+    ;
+
+List nonempty_argument_list =
+    expr.arg
+    {:
+        List<Expression> args = new List<Expression>();
+        return args.add(arg);
+    :}
+    | nonempty_argument_list.args COMMA expr.arg
+    {: return args.add(arg); :}
+    ;
+
+Block block = LBRACE stmt_list.statements RBRACE
+    {: return new Block(statements); :}
+    ;
+
+List stmt_list =
+    /* empty */
+    {: return new List<Stmt>(); :}
+    | stmt_list.statements stmt.statement
+    {: return statements.add(statement); :}
+    ;
+
+Stmt stmt = 
+    var_decl.declaration
+    {: return declaration; :}
+    | assignment.statement
+    {: return statement; :}
+    | return_stmt.statement
+    {: return statement; :}
+    | if_stmt.statement
+    {: return statement; :}
+    | while_stmt.statement
+    {: return statement; :}
+    | function_call_stmt.statement
+    {: return statement; :}
+    ;
+
+ReturnStmt return_stmt = 
+    RETURN expr.value SEMICOLON
+    {: return new ReturnStmt(value); :}
+    ;
+
+IfStmt if_stmt = 
+    IF LPAREN expr.condition RPAREN block.thenBlock
+    {: return new IfStmt(
+        condition,
+        thenBlock,
+        new Opt<Block>()
+    ); :}
+
+    | IF LPAREN expr.condition RPAREN block.thenBlock
+        ELSE block.elseBlock
+        {: return new IfStmt(
+            condition,
+            thenBlock,
+            new Opt<Block>(elseBlock)
+        ); :}
+    ;
+
+WhileStmt while_stmt =
+    WHILE LPAREN expr.condition RPAREN block.body
+    {: return new WhileStmt(condition, body); :}
+    ;
+
+
+
+/*
+VDecl var_decl = INT id_decl.name SEMICOLON
+    {: return new VDecl(name); :}
+    ;
+*/
+
+VDecl var_decl =
+    INT id_decl.name SEMICOLON
+    {: return new VDecl(
+        name,
+        new Opt<Expression>()
+    ); :}
+    | INT id_decl.name ASSIGN expr.value SEMICOLON
+    {: return new VDecl(
+        name,
+        new Opt<Expression>(value)
+    ); :}
+    ;
+
+AssignStatement assignment = 
+    id_use.target ASSIGN expr.value SEMICOLON
+    {: return new AssignStatement(target, value); :}
+    ;
+
+FunctionCall function_call =
+    id_use.function LPAREN argument_list.args RPAREN
+    {: return new FunctionCall(function, args); :}
+    ;
+
+FunctionCallStmt function_call_stmt =
+    function_call.call SEMICOLON
+    {: return new FunctionCallStmt(call); :}
+    ;
+
+/*
+Expression expr =
+    comparison.value
+    {: return value; :}
+    | comparison.left EQ comparison.right
+    {: return new Equal(left, right); :}
+    | comparison.left NEQ comparison.right
+    {: return new NotEqual(left, right); :}
+    ;
+
+Expression comparison =
+    sum.value
+    {: return value; :}
+    | sum.left LT sum.right
+    {: return new LessThan(left, right); :}
+    | sum.left LE sum.right
+    {: return new LessEqual(left, right); :}
+    | sum.left GT sum.right
+    {: return new GreaterThan(left, right); :}
+    | sum.left GE sum.right
+    {: return new GreaterEqual(left,right); :}
+    ;
+*/
+
+Expression expr =
+    sum.value
+    {: return value; :}
+
+    | sum.left EQ sum.right
+    {: return new Equal(left, right); :}
+
+    | sum.left NEQ sum.right
+    {: return new NotEqual(left, right); :}
+
+    | sum.left LT sum.right
+    {: return new LessThan(left, right); :}
+
+    | sum.left LE sum.right
+    {: return new LessEqual(left, right); :}
+
+    | sum.left GT sum.right
+    {: return new GreaterThan(left, right); :}
+
+    | sum.left GE sum.right
+    {: return new GreaterEqual(left, right); :}
+    ;
+
+Expression sum =
+    product.value
+    {: return value; :}
+    | sum.left PLUS product.right
+    {: return new Add(left, right); :}
+    | sum.left MINUS product.right
+    {: return new Subtract(left, right); :}
+    ;
+
+Expression product = 
+    unary.value
+    {: return value; :}
+
+    | product.left MUL unary.right
+    {: return new Multiply(left, right); :}
+
+    | product.left DIV unary.right
+    {: return new Divide(left, right); :}
+
+    | product.left MOD unary.right
+    {: return new Modulo(left, right); :}
+    ;
+
+Expression unary =
+    factor.value
+    {: return value; :}
+    | MINUS unary.value
+    {: return new Negate(value); :}
+    ;
+
+Expression factor = 
+    numeral.value
+    {: return value; :}
+
+    | function_call.value
+    {: return value; :}
+
+    | id_use.value
+    {: return value; :}
+
+    | LPAREN expr.value RPAREN
+    {: return value; :}
+    ;
+
+IdDecl id_decl = ID.id
+    {: return new IdDecl(id); :}
+    ;
+
+IdUse id_use = ID.id
+    {: return new IdUse(id); :}
+    ;
+
+Numeral numeral = NUMERAL.number
+    {: return new Numeral(number); :}
+    ;

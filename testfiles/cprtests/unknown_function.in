@@ -1,0 +1,3 @@
+int main() {
+    return foo(); //[[IdUse.decl.isUnknown=true]]
+}

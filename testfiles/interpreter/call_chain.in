@@ -1,0 +1,15 @@
+int g(int x) {
+    print(x);
+}
+
+int f(int a) {
+    int b = a * 3;
+    g(b + 1);
+    print(a);
+}
+
+int main() {
+    int a = 1;
+    f(a);
+    print(a);
+}

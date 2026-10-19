@@ -1,0 +1,16 @@
+aspect PredefinedFunctions {
+    syn nta List<FunctionDecl> Program.predefinedFunctions() {
+        List<FunctionDecl> functions = new List<FunctionDecl>();
+
+        // Read function
+        functions.add(new FunctionDecl(new IdDecl("read"), new List<Parameter>(), new Block(new List<Stmt>())));
+        
+        // Print function
+        List<Parameter> printParameters = new List<Parameter>();
+        printParameters.add(new Parameter(new IdDecl("output")));
+        functions.add(new FunctionDecl(new IdDecl("print"), printParameters, new Block(new List<Stmt>())));
+
+        
+        return functions;
+    }
+}

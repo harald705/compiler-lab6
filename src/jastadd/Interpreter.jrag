@@ -1,0 +1,210 @@
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Scanner;
+import java.util.NoSuchElementException;
+import java.util.InputMismatchException;
+
+
+aspect Interpreter {
+    public void Program.eval() {
+        IdDecl main = localLookup("main");
+        if (main.isUnknown() || !main.isFunction()) {
+            System.err.println("Error: main function missing");
+            return;
+        }
+        Scanner input = new Scanner(System.in);
+        main.function().eval(new ActivationRecord(input));
+    }
+
+    public int FunctionDecl.eval(ActivationRecord actrec) {
+        try {
+            getBody().eval(actrec);
+        } catch (ReturnException e) {
+            return e.getValue();
+        }
+        return 0;
+    }
+
+    public void Block.eval(ActivationRecord actrec) throws ReturnException {
+        for (int i = 0; i < getNumStmt(); i++) {
+            getStmt(i).eval(actrec);
+        }
+    }
+
+    public void IfStmt.eval(ActivationRecord actrec) throws ReturnException {
+        if (getCondition().eval(actrec) == 1) {
+            getThen().eval(actrec);
+        } else if (hasElse()) {
+            getElse().eval(actrec);
+        }
+    }
+
+    public void WhileStmt.eval(ActivationRecord actrec) throws ReturnException {
+        while (getCondition().eval(actrec) == 1) {
+            getBody().eval(actrec);
+        }
+    }
+
+    public void Stmt.eval(ActivationRecord actrec) throws ReturnException {
+        throw new RuntimeException();
+    }
+
+    public void ReturnStmt.eval(ActivationRecord actrec) throws ReturnException {
+        throw new ReturnException(getValue().eval(actrec));
+    }
+
+    public void VDecl.eval(ActivationRecord actrec) {
+        if (hasInit()) {
+            actrec.put(getIdDecl().uniqueName(), getInit().eval(actrec));
+        }
+        else {
+            actrec.put(getIdDecl().uniqueName(), 0);
+
+        }
+    }
+
+    public int IdUse.eval(ActivationRecord actrec) {
+        return actrec.get(decl().uniqueName());
+    }
+
+    public void AssignStatement.eval(ActivationRecord actrec) {
+        int value = getValue().eval(actrec);
+        actrec.put(getTarget().decl().uniqueName(), value);
+    }
+
+    public int Numeral.eval(ActivationRecord actrec) {
+        return Integer.parseInt(getNUMERAL());
+    }
+
+    public int Add.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) + getRight().eval(actrec);
+    }
+
+    public int Subtract.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) - getRight().eval(actrec);
+    }
+
+    public int Multiply.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) * getRight().eval(actrec);
+    }
+
+    public int Divide.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) / getRight().eval(actrec);
+    }
+
+    public int Modulo.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) % getRight().eval(actrec);
+    }
+
+    public int Negate.eval(ActivationRecord actrec) {
+        return -getOperand().eval(actrec);
+    }
+
+    public int Equal.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) == getRight().eval(actrec) ? 1 : 0;
+    }
+
+    public int NotEqual.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) != getRight().eval(actrec) ? 1 : 0;
+    }
+
+    public int LessThan.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) < getRight().eval(actrec) ? 1 : 0;
+    }
+
+    public int LessEqual.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) <= getRight().eval(actrec) ? 1 : 0;
+    }
+
+    public int GreaterThan.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) > getRight().eval(actrec) ? 1 : 0;
+    }
+
+    public int GreaterEqual.eval(ActivationRecord actrec) {
+        return getLeft().eval(actrec) >= getRight().eval(actrec) ? 1 : 0;
+    }
+
+    public void FunctionCallStmt.eval(ActivationRecord actrec) {
+        getFunctionCall().eval(actrec);
+    }
+
+    public int FunctionCall.eval(ActivationRecord actrec) {
+        String name = getFunction().getID();
+        if (name.equals("print")) {
+            int value = getArgument(0).eval(actrec);
+            System.out.println(value);
+            return 0;
+        }
+
+        if (name.equals("read")) {
+            try {
+                return actrec.input().nextInt();
+            } catch (InputMismatchException er) {
+                throw new RuntimeException("Runtime exception: expected int");
+            } catch (NoSuchElementException er) {
+                throw new RuntimeException("Runtime exception: reached last input value");
+            }
+        }
+
+        FunctionDecl function = getFunction().decl().function();
+        ActivationRecord callee = new ActivationRecord(actrec.input());
+
+        for (int i = 0; i < getNumArgument(); i++) {
+            int value = getArgument(i).eval(actrec);
+            callee.put(function.getParameter(i).getIdDecl().uniqueName(), value);
+        }
+        return function.eval(callee);
+    }
+
+    public int Expression.eval(ActivationRecord actrec) {
+        throw new RuntimeException();
+    }
+
+    class ActivationRecord {
+        
+        private Map<String, Integer> variables = new HashMap<>();
+        private final Scanner input;
+
+        public ActivationRecord(Scanner input){
+            this.input = input;
+        }
+        
+        public void put(String name, int value) {
+            variables.put(name, value);
+        }
+
+        // Returns default value 0 if variable is used before assign
+        public int get(String name) {
+            return variables.getOrDefault(name, 0);
+        }
+
+        public Scanner input() {
+            return input;
+        }
+    }
+
+    class ReturnException extends Exception {
+        private final int value;
+
+        public ReturnException(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
+    }
+
+    public void Program.run(String args) {
+        java.io.InputStream prevIn = System.in;
+        try {
+            System.setIn(new java.io.ByteArrayInputStream(args.getBytes("UTF-8")));
+            eval();
+        } catch (java.io.UnsupportedEncodingException e) {
+            e.printStackTrace();
+        } finally {
+            System.setIn(prevIn);
+        }
+    }
+
+}
