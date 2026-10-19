@@ -238,4 +238,41 @@ aspect CodeGen {
     }
 
 
+    inh String ASTNode.functionName();
+
+    eq FunctionDecl.getBody().functionName() = getIdDecl().getID();
+    
+    syn String IfStmt.elseLabel() = functionName() + "else_" + uniquePrefix();
+    syn String IfStmt.endLabel() = functionName() + "endif_" + uniquePrefix();
+
+    syn String WhileStmt.startLabel() = functionName() + "while_start_" + uniquePrefix();
+    syn String WhileStmt.endLabel() = functionName() + "endif_" + uniquePrefix();
+
+    
+    public void IfStmt.genCode(PrintStream out) {
+        getCondition().genJumpIfFalse(out, elseLabel());
+        getThen().genCode(out);
+        out.println("       jmp " + endLabel());
+
+        out.println(elseLabel() + ":");
+        if (hasElse()) {
+            getElse().genCode(out);
+        }
+
+        out.println(endLabel() + ":");
+    }
+
+
+    public void WhileStmt.genCode(PrintStream out) {
+        out.println(startLabel() + ":");
+        getCondition().genJumpIfFalse(out, endLabel());
+        
+        // Generate loop body
+        getBody().genCode(out);
+
+        out.println("       jmp " + start);
+        out.println(endLabel() + ":");
+    }
+
+
 }

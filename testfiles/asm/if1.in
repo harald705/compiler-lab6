@@ -1,0 +1,11 @@
+int main() {
+    if (3 > 5) {
+        print(10);
+    } else {
+        print(20);
+    }
+
+    if (5 > 3) {
+        print(30);
+    }
+}
