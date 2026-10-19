@@ -4,6 +4,9 @@ aspect CodeGen {
 public void Program.genCode(PrintStream out) {
     out.println(".global _start");
     // etc.
+    out.println(".data");
+    out.println("buf: .skip 1024");
+    out.println(".text");
     out.println("_start:");
     out.println("       call main");
     // Exiting with code 0
@@ -11,6 +14,42 @@ public void Program.genCode(PrintStream out) {
     out.println("       movq $60, %rax");
     out.println("       syscall");
     // helper procedures (print/read)
+    out.println("print:");
+    out.println("        pushq %rbp");
+    out.println("        movq %rsp, %rbp");
+    out.println("        ### Convert integer to string (itoa).");
+    out.println("        movq 16(%rbp), %rax");
+    out.println("        leaq buf(%rip), %rsi    # RSI = write pointer (starts at end of buffer)");
+    out.println("        addq $1023, %rsi");
+    out.println("        movb $0x0A, (%rsi)      # insert newline");
+    out.println("        movq $1, %rcx           # RCX = string length");
+    out.println("        cmpq $0, %rax");
+    out.println("        jge itoa_loop");
+    out.println("        negq %rax               # negate to make RAX positive");
+    out.println("itoa_loop:                      # do.. while (at least one iteration)");
+    out.println("        movq $10, %rdi");
+    out.println("        cqo                     # sign extend RAX to RDX to prepare for idiv");
+    out.println("        idivq %rdi              # divide RDX:RAX by 10");
+    out.println("        addb $0x30, %dl         # remainder + '0'");
+    out.println("        decq %rsi               # move string pointer");
+    out.println("        movb %dl, (%rsi)");
+    out.println("        incq %rcx               # increment string length");
+    out.println("        cmpq $0, %rax");
+    out.println("        jg itoa_loop            # produce more digits");
+    out.println("itoa_done:");
+    out.println("        movq 16(%rbp), %rax");
+    out.println("        cmpq $0, %rax");
+    out.println("        jge print_end");
+    out.println("        decq %rsi");
+    out.println("        incq %rcx");
+    out.println("        movb $0x2D, (%rsi)");
+    out.println("print_end:");
+    out.println("        movq $1, %rdi");
+    out.println("        movq %rcx, %rdx");
+    out.println("        movq $1, %rax");
+    out.println("        syscall");
+    out.println("        popq %rbp");
+    out.println("        ret");
 
     for (FunctionDecl decl: getFunctionDeclList()) {
         decl.genCode(out);
@@ -28,6 +67,26 @@ public void FunctionDecl.genCode(PrintStream out) {
     out.println("       movq %rbp, %rsp");
     out.println("       popq %rbp");
     out.println("       ret");
+}
+
+
+public void FunctionCall.genEval(PrintStream out) {
+    // Evaluate and push arguments
+    for (int i = getNumArgument() - 1; i >= 0; i--) {
+        getArgument(i).genEval(out);
+        out.println("       pushq %rax");
+    }
+    
+    out.println("       call " + getFunction().getID());
+
+    if (getNumArgument() > 0) {
+        out.println("       addq $" + (getNumArgument() * 8) + ", %rsp");
+    }
+}
+
+
+public void FunctionCallStmt.genCode(PrintStream out) {
+    getFunctionCall().genEval(out);
 }
 
 
